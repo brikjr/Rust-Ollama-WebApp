@@ -1,0 +1,10 @@
+# Mark all files in static directory as vendored
+static/* linguist-vendored
+
+# Mark HTML files as vendored
+*.html linguist-vendored
+*.css linguist-vendored
+*.js linguist-vendored
+
+# Mark Rust files as Rust
+*.rs linguist-language=Rust
