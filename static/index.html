@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .metallic-bg {
+            background: linear-gradient(135deg, #2a2a2a 0%, #3d3d3d 50%, #2a2a2a 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metallic-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 50% 50%, transparent 0%, rgba(242, 101, 34, 0.05) 100%),
+                repeating-linear-gradient(45deg, 
+                    rgba(242, 101, 34, 0.05) 0px, 
+                    rgba(242, 101, 34, 0.05) 1px,
+                    transparent 1px, 
+                    transparent 4px
+                );
+            opacity: 0.3;
+        }
+
+        .chat-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .message-bubble {
+            margin-bottom: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            max-width: 95%;
+        }
+
+        .message-bubble.user {
+            background-color: rgba(251, 146, 60, 0.1);
+            margin-left: auto;
+            margin-right: 1rem;
+        }
+
+        .message-bubble.assistant {
+            background-color: rgba(255, 255, 255, 0.8);
+            margin-left: 1rem;
+            margin-right: auto;
+        }
+
+        .message-header {
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+
+        .message-content {
+            line-height: 1.4;
+        }
+
+        .error-message {
+            background-color: rgba(254, 226, 226, 0.9);
+            color: #991B1B;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin: 0.5rem 1rem;
+            border: 1px solid rgba(220, 38, 38, 0.2);
+        }
+
+        .chat-history {
+            padding: 1rem 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-container {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen metallic-bg">
+    <div class="container mx-auto p-4 max-w-4xl">
+        <div class="flex items-center justify-between mb-6 mt-4">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-orange-500 to-orange-700 bg-clip-text text-transparent">
+                Ollama Chat
+            </h1>
+            <div class="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 shadow-lg"></div>
+        </div>
+        
+        <div class="mb-4 p-3 chat-container rounded-lg shadow-xl">
+            <label for="model" class="block text-sm font-medium text-gray-700">Model:</label>
+            <input type="text" id="model" 
+                   class="mt-1 block w-full rounded-md border border-gray-300 bg-white/50 shadow-sm p-2 backdrop-blur-sm"
+                   value="deepseek-r1:7b">
+        </div>
+
+        <div class="chat-container rounded-lg shadow-xl mb-4" style="height: 400px;">
+            <div id="chat-history" class="chat-history h-full overflow-y-auto">
+            </div>
+        </div>
+
+        <div class="flex gap-2 p-3 chat-container rounded-lg shadow-xl">
+            <input type="text" id="prompt" 
+                   class="flex-1 rounded-md border border-gray-300 bg-white/50 shadow-sm p-2 backdrop-blur-sm"
+                   placeholder="Type your message...">
+            <button onclick="sendMessage()" 
+                    class="bg-gradient-to-r from-orange-500 to-orange-700 text-white px-6 py-2 rounded-md hover:from-orange-600 hover:to-orange-800 transition-all duration-200 shadow-lg">
+                Send
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatHistory = document.getElementById('chat-history');
+        const promptInput = document.getElementById('prompt');
+        const modelInput = document.getElementById('model');
+
+        promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const prompt = promptInput.value.trim();
+            const model = modelInput.value.trim();
+            
+            if (!prompt) return;
+
+            addMessage('You', prompt);
+            promptInput.value = '';
+
+            try {
+                const response = await fetch('http://localhost:8080/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        prompt: prompt
+                    }),
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.message || 'An error occurred');
+                }
+
+                addMessage('Assistant', data.response);
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('System', `Error: ${error.message || 'Failed to get response'}`, true);
+            }
+        }
+
+        function addMessage(sender, text, isError = false) {
+            const messageDiv = document.createElement('div');
+            
+            if (isError) {
+                messageDiv.className = 'error-message';
+                messageDiv.innerHTML = `<div class="font-bold">Error:</div><div>${text}</div>`;
+            } else {
+                messageDiv.className = `message-bubble ${sender.toLowerCase()}`;
+                messageDiv.innerHTML = `
+                    <div class="message-header ${sender === 'You' ? 'text-orange-600' : 'text-orange-700'}">
+                        ${sender}
+                    </div>
+                    <div class="message-content">${text}</div>
+                `;
+            }
+            
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+    </script>
+</body>
+</html>
